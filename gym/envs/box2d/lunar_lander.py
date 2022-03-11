@@ -22,6 +22,8 @@ import gym
 from gym import error, spaces
 from gym.utils import seeding, EzPickle
 
+from agents import QLearningAgent
+
 FPS = 50
 SCALE = 30.0  # affects how fast-paced the game is, forces should be adjusted as well
 
@@ -231,7 +233,7 @@ class LunarLander(gym.Env, EzPickle):
         self.moon.color1 = (0.0, 0.0, 0.0)
         self.moon.color2 = (0.0, 0.0, 0.0)
 
-        initial_y = VIEWPORT_H / SCALE
+        initial_y = VIEWPORT_H / SCALE/ 3 #krishan
         self.lander = self.world.CreateDynamicBody(
             position=(VIEWPORT_W / SCALE / 2, initial_y),
             angle=0.0,
@@ -610,16 +612,7 @@ def random(env,s):
         # print('action =', a)
         return a
 
-def alwaysdown(env,s):
-    if env.continuous:
-        raise NotImplemented()
-    else:
-        #random action
-        a = np.random.choice(4)
-        # print('action =', a)
-        return 1
-
-def demo_lander(env, seed=None, render=False, agent = alwaysdown):
+def demo_lander(env, seed=None, render=False, agent = random):
     total_reward = 0
     steps = 0
     s = env.reset(seed=seed)
@@ -643,7 +636,71 @@ def demo_lander(env, seed=None, render=False, agent = alwaysdown):
         env.close()
     return total_reward
 
+import agents
 
+def train_lander_learnableAgent(env, seed=None, render=False, 
+        agent:agents.QLearningAgent = None, learning = False):
+
+    total_reward = 0
+    steps = 0
+    s = env.reset(seed=seed)
+    while True:
+        a = agent.getAction(s, range(4))
+        next_s, r, done, info = env.step(a) #next_s
+        total_reward += r
+
+        if render:
+            still_open = env.render()
+            if still_open == False:
+                break
+
+        if steps % 20 == 0 and not learning:
+            print(f"action = {a}, observations:", " ".join([f"{x:+0.2f}" for x in next_s]))
+            print(f"step {steps} total_reward {total_reward:+0.2f}")
+        steps += 1
+        if learning:#update weights
+            agent.update(s,a,r, next_s)
+        if done or steps >300:
+            # print(f"steps {steps} total_reward {total_reward:+0.2f}")
+            # print('agent = ',agent)
+            break
+    
+    return total_reward
+import matplotlib.pyplot as plt
+def main_learn(env, 
+        seed=47, 
+        render=False, 
+        train_episodes = 10000):
+    agent = agents.ApproximateQLearningAgent(
+        num_actions=4,
+        num_features=8,
+    )
+    # train
+    rewards = []
+    r = False
+    for ep in range(train_episodes):
+        # print('\nTraining Episode {}'.format(ep))
+        # try: 
+        agent.train(epsilon = 0.15)
+        total_reward = train_lander_learnableAgent(env, seed, render = r, agent=agent, learning = True)
+        r = False
+        rewards.append(total_reward)
+        if (ep)%50 == 0:
+            print('Episode {}: rewards = {}'.format(ep, np.mean(rewards[-50:])))
+            # agent.finishEpisode()
+            # print(agent)
+            r = True
+    
+    plt.plot(rewards)
+    plt.show()
+
+    print('\nFinished Training Episode {}. Evaluating now'.format(ep))
+    agent.evaluate()
+    total_reward = train_lander_learnableAgent(env, seed, render = render, agent=agent, learning = False    )
+
+    if render:
+        env.close()
+    
 class LunarLanderContinuous:
     def __init__(self):
         raise error.Error(
@@ -655,4 +712,5 @@ class LunarLanderContinuous:
 
 
 if __name__ == "__main__":
-    demo_lander(LunarLander(), render=True)
+    # demo_lander(LunarLander(), render=True)
+    main_learn(LunarLander(), render=True)
