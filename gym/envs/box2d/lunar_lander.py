@@ -659,7 +659,7 @@ def train_lander_learnableAgent(env, seed=None, render=False,
             print(f"step {steps} total_reward {total_reward:+0.2f}")
         steps += 1
         if learning:#update weights
-            agent.update(s,a,r, next_s)
+            agent.update(s,a,r, next_s if not done else None)
         if done or steps >300:
             # print(f"steps {steps} total_reward {total_reward:+0.2f}")
             # print('agent = ',agent)
@@ -670,7 +670,7 @@ import matplotlib.pyplot as plt
 def main_learn(env, 
         seed=47, 
         render=False, 
-        train_episodes = 10000):
+        train_episodes = 100):
     agent = agents.ApproximateQLearningAgent(
         num_actions=4,
         num_features=8,
