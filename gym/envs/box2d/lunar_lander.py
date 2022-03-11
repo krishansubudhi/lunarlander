@@ -601,13 +601,30 @@ def heuristic(env, s):
             a = 1
     return a
 
+def random(env,s):
+    if env.continuous:
+        raise NotImplemented()
+    else:
+        #random action
+        a = np.random.choice(4)
+        # print('action =', a)
+        return a
 
-def demo_heuristic_lander(env, seed=None, render=False):
+def alwaysdown(env,s):
+    if env.continuous:
+        raise NotImplemented()
+    else:
+        #random action
+        a = np.random.choice(4)
+        # print('action =', a)
+        return 1
+
+def demo_lander(env, seed=None, render=False, agent = alwaysdown):
     total_reward = 0
     steps = 0
     s = env.reset(seed=seed)
     while True:
-        a = heuristic(env, s)
+        a = agent(env, s)
         s, r, done, info = env.step(a)
         total_reward += r
 
@@ -638,4 +655,4 @@ class LunarLanderContinuous:
 
 
 if __name__ == "__main__":
-    demo_heuristic_lander(LunarLander(), render=True)
+    demo_lander(LunarLander(), render=True)
