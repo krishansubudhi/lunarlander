@@ -235,3 +235,5 @@ class LanderQTableAgent(QTableLearningAgent):
             int(s[6]), \
             int(s[7]))
         return state
+
+
