@@ -22,7 +22,7 @@ import gym
 from gym import error, spaces
 from gym.utils import seeding, EzPickle
 
-from agents import QLearningAgent
+from mycode.agents import QLearningAgent
 
 FPS = 50
 SCALE = 30.0  # affects how fast-paced the game is, forces should be adjusted as well
@@ -636,7 +636,7 @@ def demo_lander(env, seed=None, render=False, agent = random):
         env.close()
     return total_reward
 
-import agents
+import mycode.agents as agents
 
 def train_lander_learnableAgent(env, seed=None, render=False, 
         agent:agents.QLearningAgent = None, learning = False):

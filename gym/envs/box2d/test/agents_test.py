@@ -1,5 +1,5 @@
 import unittest
-from .. import agents
+from ..mycode import agents
 import numpy as np
 
 class ApproximateQLearningAgentTest(unittest.TestCase):
@@ -26,10 +26,6 @@ class ApproximateQLearningAgentTest(unittest.TestCase):
         #update weights
     def testUpdate(self):
         random_state = np.ones(self.num_features)
-        with self.assertRaises(
-            agents.UpdateWhileNotTrainingException):
-            self.agent.update(random_state,0, 0, random_state)
-        
         self.agent.train()
         assert self.agent.getQValue(random_state, 2) ==  0
         self.agent.update(random_state, action = 2, 

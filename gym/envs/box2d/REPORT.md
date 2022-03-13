@@ -84,3 +84,106 @@ Approach:
     - [ ] https://www.cs.swarthmore.edu/~bryce/cs63/s16/slides/3-25_approximate_Q-learning.pdf
 - [ ] Deep Q learning
   - [ ] Better than approx Q learning
+
+# Results
+## Q table
+
+    agent = agents.LanderQTableAgent(4)
+
+Hyper parameters
+
+    train(env, 
+        agent, 
+        seed = 47, 
+        render = False, 
+        episodes= 10000, 
+        name = name,
+        verbose = False)
+      agent.train(
+            epsilon=getEpsilon(ep),
+            gamma=0.95,
+            alpha=0.3
+        )
+
+  def getEpsilon(iter):
+
+      threshold = 50
+      if iter > 200:
+          threshold = 10
+      if iter > 2000:
+          threshold = 5
+      if iter > 5000:
+          threshold = 1
+      if iter > 7500:
+          threshold = 0
+      return threshold/10
+![training rewards](./mycode/saved_results/LanderQTableAgent.png)
+
+Agent was not learning as there was a problem with Q value updates
+
+incorrect 
+  
+    qval += (1- self.alpha) * qval + self.alpha * sampleQ
+
+correct
+  
+    qval = (1- self.alpha) * qval + self.alpha * sampleQ
+
+## Appoximate q learning with heuristic based onehot features
+
+```
+  agent = agents.HeuristicApproxQLearner()
+
+        features = np.zeros(4)
+        if hover_todo > np.abs(angle_todo) and hover_todo > 0.05:
+            features[2] = 1
+        elif angle_todo < -0.05:
+            features[3] = 1
+        elif angle_todo > +0.05:
+            features[1] = 1
+```
+![training rewards](./mycode/saved_results/HeuristicApproxQLearner.png)
+Conclusion:
+- Agent does not learn well with high learning rate.
+- high exploration generally yields bad rewards.
+- low exploration with low learning rate yields +ve rewards
+  ```
+          agent.train(
+            epsilon=getEpsilon(ep),
+            gamma=0.95,
+            alpha=0.001
+        )
+
+        epsilon = 0.1
+  ```
+- It still does not learn the best heuristics. onehot features are not assigned highest labels. Example: 
+  ```
+  ep 1400 steps 240 reward +79.16
+  [[ 0.         -0.5067327   5.96948817  0.6023203   7.53688717]
+  [ 0.          0.55166405  5.37667624  0.14314042  6.50684866]
+  [ 0.         -0.14081854  9.76332673  0.70381361  6.93361496]
+  [ 0.         -0.02792927  6.12005603  2.08995898  6.90837691]]
+  ep 1500 steps 224 reward +158.11
+  [[ 0.         -0.80849731  6.20459922  0.65929478  8.89059442]
+  [ 0.          1.14078767  5.80344831  0.17726023  7.97594429]
+  [ 0.         -0.36009664  9.96610508  0.71622254  8.89177503]
+  [ 0.         -0.02867782  6.35537343  3.24155341  8.32965188]]
+  ```
+-Attains maximum reward faster. But hard to design these features in general
+- Proves that code and learning algorithm is correct.
+- Agent can learn with better features. Learning rate needs to be slowed down once model converges. May be problem with perceptron.
+
+## Approximate Q Learning with vannilla state features
+
+10000 episodes. Exploration - decaying (same as q table)
+
+  agent = agents.ApproximateQLearningAgent(8, 4)
+    
+![training rewards](./mycode/saved_results/ApproximateQLearningAgent.png)
+
+Conclusion:
+- Learns something but converges at reward  = -100 and avg number of steps also decreases. Looks like it's trying to reduce tiem time in air. 
+- Incresing number of exploration steps does not help.
+- Underfitting issue. May be linear function is not useful here
+- Use deep learning or design non-linear features which are linearly separable.
+
