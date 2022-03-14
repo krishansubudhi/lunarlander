@@ -1,3 +1,4 @@
+
 __credits__ = ["Andrea PIERRÉ"]
 
 import math
@@ -21,8 +22,6 @@ from Box2D.b2 import (
 import gym
 from gym import error, spaces
 from gym.utils import seeding, EzPickle
-
-from mycode.agents import QLearningAgent
 
 FPS = 50
 SCALE = 30.0  # affects how fast-paced the game is, forces should be adjusted as well
@@ -73,29 +72,24 @@ class LunarLander(gym.Env, EzPickle):
     According to Pontryagin's maximum principle, it is optimal to fire the
     engine at full throttle or turn it off. This is the reason why this
     environment has discrete actions: engine on or off.
-
     There are two environment versions: discrete or continuous.
     The landing pad is always at coordinates (0,0). The coordinates are the
     first two numbers in the state vector.
     Landing outside of the landing pad is possible. Fuel is infinite, so an agent
     can learn to fly and then land on its first attempt.
-
     To see a heuristic landing, run:
     ```
     python gym/envs/box2d/lunar_lander.py
     ```
     <!-- To play yourself, run: -->
     <!-- python examples/agents/keyboard_agent.py LunarLander-v2 -->
-
     ### Action Space
     There are four discrete actions available: do nothing, fire left
     orientation engine, fire main engine, fire right orientation engine.
-
     ### Observation Space
     There are 8 states: the coordinates of the lander in `x` & `y`, its linear
     velocities in `x` & `y`, its angle, its angular velocity, and two booleans
     that represent whether each leg is in contact with the ground or not.
-
     ### Rewards
     Reward for moving from the top of the screen to the landing pad and coming
     to rest is about 100-140 points.
@@ -105,11 +99,9 @@ class LunarLander(gym.Env, EzPickle):
     contact is +10 points.
     Firing the main engine is -0.3 points each frame. Firing the side engine
     is -0.03 points each frame. Solved is 200 points.
-
     ### Starting State
     The lander starts at the top center of the viewport with a random initial
     force applied to its center of mass.
-
     ### Episode Termination
     The episode finishes if:
     1) the lander crashes (the lander body gets in contact with the moon);
@@ -122,7 +114,6 @@ class LunarLander(gym.Env, EzPickle):
     > body is awake and collides with a sleeping body, then the sleeping body
     > wakes up. Bodies will also wake up if a joint or contact attached to
     > them is destroyed.
-
     ### Arguments
     To use to the _continuous_ environment, you need to specify the
     `continuous=True` argument like below:
@@ -130,16 +121,13 @@ class LunarLander(gym.Env, EzPickle):
     import gym
     env = gym.make("LunarLander-v2", continuous=True)
     ```
-
     ### Version History
     - v2: Count energy spent
     - v1: Legs contact with ground added in state vector; contact with ground
         give +10 reward points, and -10 if then lose contact; reward
         renormalized to 200; harder initial random push.
     - v0: Initial version
-
     <!-- ### References -->
-
     ### Credits
     Created by Oleg Klimov
     """
@@ -233,7 +221,7 @@ class LunarLander(gym.Env, EzPickle):
         self.moon.color1 = (0.0, 0.0, 0.0)
         self.moon.color2 = (0.0, 0.0, 0.0)
 
-        initial_y = VIEWPORT_H / SCALE/ 3 #krishan
+        initial_y = VIEWPORT_H / SCALE
         self.lander = self.world.CreateDynamicBody(
             position=(VIEWPORT_W / SCALE / 2, initial_y),
             angle=0.0,
@@ -449,6 +437,7 @@ class LunarLander(gym.Env, EzPickle):
     def render(self, mode="human"):
         if self.screen is None:
             pygame.init()
+            pygame.display.init()
             self.screen = pygame.display.set_mode((VIEWPORT_W, VIEWPORT_H))
         if self.clock is None:
             self.clock = pygame.time.Clock()
@@ -535,6 +524,7 @@ class LunarLander(gym.Env, EzPickle):
         self.screen.blit(self.surf, (0, 0))
 
         if mode == "human":
+            pygame.event.pump()
             self.clock.tick(self.metadata["render_fps"])
             pygame.display.flip()
 
@@ -547,6 +537,7 @@ class LunarLander(gym.Env, EzPickle):
 
     def close(self):
         if self.screen is not None:
+            pygame.display.quit()
             pygame.quit()
             self.isopen = False
 
@@ -556,7 +547,6 @@ def heuristic(env, s):
     The heuristic for
     1. Testing
     2. Demonstration rollout.
-
     Args:
         env: The environment
         s (list): The state. Attributes:
@@ -603,21 +593,13 @@ def heuristic(env, s):
             a = 1
     return a
 
-def random(env,s):
-    if env.continuous:
-        raise NotImplemented()
-    else:
-        #random action
-        a = np.random.choice(4)
-        # print('action =', a)
-        return a
 
-def demo_lander(env, seed=None, render=False, agent = random):
+def demo_heuristic_lander(env, seed=None, render=False):
     total_reward = 0
     steps = 0
     s = env.reset(seed=seed)
     while True:
-        a = agent(env, s)
+        a = heuristic(env, s)
         s, r, done, info = env.step(a)
         total_reward += r
 
@@ -636,71 +618,7 @@ def demo_lander(env, seed=None, render=False, agent = random):
         env.close()
     return total_reward
 
-import mycode.agents as agents
 
-def train_lander_learnableAgent(env, seed=None, render=False, 
-        agent:agents.QLearningAgent = None, learning = False):
-
-    total_reward = 0
-    steps = 0
-    s = env.reset(seed=seed)
-    while True:
-        a = agent.getAction(s, range(4))
-        next_s, r, done, info = env.step(a) #next_s
-        total_reward += r
-
-        if render:
-            still_open = env.render()
-            if still_open == False:
-                break
-
-        if steps % 20 == 0 and not learning:
-            print(f"action = {a}, observations:", " ".join([f"{x:+0.2f}" for x in next_s]))
-            print(f"step {steps} total_reward {total_reward:+0.2f}")
-        steps += 1
-        if learning:#update weights
-            agent.update(s,a,r, next_s if not done else None)
-        if done or steps >300:
-            # print(f"steps {steps} total_reward {total_reward:+0.2f}")
-            # print('agent = ',agent)
-            break
-    
-    return total_reward
-import matplotlib.pyplot as plt
-def main_learn(env, 
-        seed=47, 
-        render=False, 
-        train_episodes = 100):
-    agent = agents.ApproximateQLearningAgent(
-        num_actions=4,
-        num_features=8,
-    )
-    # train
-    rewards = []
-    r = False
-    for ep in range(train_episodes):
-        # print('\nTraining Episode {}'.format(ep))
-        # try: 
-        agent.train(epsilon = 0.15)
-        total_reward = train_lander_learnableAgent(env, seed, render = r, agent=agent, learning = True)
-        r = False
-        rewards.append(total_reward)
-        if (ep)%50 == 0:
-            print('Episode {}: rewards = {}'.format(ep, np.mean(rewards[-50:])))
-            # agent.finishEpisode()
-            # print(agent)
-            r = True
-    
-    plt.plot(rewards)
-    plt.show()
-
-    print('\nFinished Training Episode {}. Evaluating now'.format(ep))
-    agent.evaluate()
-    total_reward = train_lander_learnableAgent(env, seed, render = render, agent=agent, learning = False    )
-
-    if render:
-        env.close()
-    
 class LunarLanderContinuous:
     def __init__(self):
         raise error.Error(
@@ -712,5 +630,4 @@ class LunarLanderContinuous:
 
 
 if __name__ == "__main__":
-    # demo_lander(LunarLander(), render=True)
-    main_learn(LunarLander(), render=True)
+    demo_heuristic_lander(LunarLander(), render=True)

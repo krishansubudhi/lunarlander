@@ -187,3 +187,44 @@ Conclusion:
 - Underfitting issue. May be linear function is not useful here
 - Use deep learning or design non-linear features which are linearly separable.
 
+## Deep Q learning
+even deep model with only linear regression was not able to learn proper separation for 1dtarget in simple game.
+```
+0 tensor(1)
+1 tensor(1)
+2 tensor(1)
+3 tensor(1)
+4 tensor(1)
+5 tensor(1)
+6 tensor(1)
+7 tensor(1)
+8 tensor(0)
+9 tensor(0)
+10 tensor(0)
+```
+This is probably because of the sample imbalanace. The terminal states are not seen much often. Leading to model not being very precise. 
+Also adding intermediate rewards if target is closer because of action - didnt help.
+This is probably because the task is a regression task. Because of gamma, the prediction decreases exponentially with distance. Probably that's why linear model is not able to model that.
+
+Let's try non linear model with more parameters.
+It worked. Though there are some local minimas, the model learns accurate weight most of the times
+```
+0 tensor(1)
+1 tensor(1)
+2 tensor(1)
+3 tensor(1)
+4 tensor(1)
+5 tensor(0)
+6 tensor(0)
+7 tensor(0)
+8 tensor(0)
+9 tensor(0)
+10 tensor(0)
+```
+agent.evaluate()
+simplegame.playOneEpisode(env, agent, 100, render = True)
+[  0   0   0   0   0 100   0   0   0   1   0]
+[  0   0   0   0   0 100   0   0   1   0   0]
+[  0   0   0   0   0 100   0   1   0   0   0]
+[  0   0   0   0   0 100   1   0   0   0   0]
+[  0   0   0   0   0 100   0   0   0   0   0]

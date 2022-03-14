@@ -1,7 +1,9 @@
 import numpy as np
-import json
 import pprint
 from collections import defaultdict
+import torch
+from collections import deque
+from collections.abc import Iterable
 class UpdateWhileNotTrainingException(Exception):
     pass
 class Agent():
@@ -58,10 +60,10 @@ class QLearningAgent(Agent):
             return self.getBestAction(state,actions)
     def getBestAction(self,state, actions):
         raise NotImplemented()
-    def update(self, state, action, reward, next_state, next_state_actions=None):
+    def update(self, state, action, reward, next_state, next_state_actions=None, finished = False):
         self.totalRewardsEp += reward
         if self.training:
-            self._update(state, action, reward, next_state, next_state_actions)
+            self._update(state, action, reward, next_state, next_state_actions, finished)
     def _update(self, state, action, reward, next_state, next_state_actions):
         raise NotImplemented()
     def getStats(self):
@@ -148,7 +150,7 @@ class ApproximateQLearningAgent(QLearningAgent):
         weights = self.getWeights(action)
         return np.dot(features, weights)
 
-    def _update(self, state, action, reward, next_state, next_state_actions = None):
+    def _update(self, state, action, reward, next_state, next_state_actions = None, finished = False):
         '''Update Q based on the actual reward vs estimated reward.
         Remember - we don't have any right or wrong labels
         '''
@@ -236,4 +238,99 @@ class LanderQTableAgent(QTableLearningAgent):
             int(s[7]))
         return state
 
-
+class DQNAgentModel(torch.nn.Module):
+    def __init__(self, ip_size, op_size, lr = 0.1, gamma = 0.95):
+        super().__init__()
+        self.ip_size = ip_size
+        self.op_size = op_size
+        hidden_size = 20
+        self.net = torch.nn.Sequential(
+                torch.nn.Linear(ip_size, hidden_size),
+                torch.nn.ReLU(),
+                torch.nn.Linear(hidden_size, hidden_size),
+                torch.nn.ReLU(),
+                torch.nn.Linear(hidden_size, op_size)
+        )
+        self.memory = deque(maxlen=1000000)
+        self.maxmemory = 1000
+        self.batch_size = 128
+        self.lr = lr
+        self.gamma = gamma
+        self.optim = torch.optim.SGD(lr = lr, params = self.parameters())
+        self.criterion = torch.nn.MSELoss()
+        self.losses = []
+        self.steps = 0
+    def forward(self, x):
+        if not isinstance(x, torch.Tensor):# assumes bs 1
+            x = torch.tensor(x, dtype = torch.float)
+        return self.net(x)
+    def get_random_memories(self, batch_size):
+        indices = np.random.choice(len(self.memory), batch_size)
+        states = []
+        actions = []
+        rewards = []
+        next_states = []
+        finished = []
+        for i in indices:
+            states.append(self.memory[i][0])
+            actions.append(self.memory[i][1])
+            rewards.append(self.memory[i][2])
+            next_states.append(self.memory[i][3])
+            finished.append(int(self.memory[i][4]))
+        return {'states' :torch.tensor(states, dtype = torch.float).reshape(len(states),self.ip_size),
+                'actions' : torch.tensor(actions, dtype = torch.long),
+                'rewards': torch.tensor(rewards, dtype = torch.float),
+                'next_states' : torch.tensor(next_states, dtype = torch.float).reshape(len(states),self.ip_size),
+                'finished' : torch.tensor(finished, dtype = torch.int)
+               }
+    def addObservation(self,state, action, reward, next_state, finished):
+        self.memory.append([state, action, reward, next_state, finished])
+    def train_step(self, states, labels):
+        # pdb.set_trace()
+        self.steps += 1
+        self.optim.zero_grad()
+        pred = self.forward(states).squeeze()
+#         print(pred, labels)
+        loss = self.criterion(labels, pred)
+        loss.backward()
+        self.losses.append(loss.item())
+        # if self.steps % 50 == 0:
+        #     print(f'{self.steps}: loss = {loss}')#, model = {self.net[0].weight.data.numpy()}')
+        self.optim.step()
+    def generate_label(self, memories):
+        states = memories['states']
+        actions = memories['actions']
+        labels = self.forward(states)
+        next_state_qvals = torch.max(self.forward(memories['next_states']), axis = 1)[0] * (1-memories['finished'])
+        
+        labels[range(labels.shape[0]), actions] = \
+            memories['rewards'] + self.gamma * next_state_qvals
+        return labels
+    def replay_experiences(self):
+        if len(self.memory)<self.batch_size:
+            return
+        memories = self.get_random_memories(self.batch_size)
+        states = memories['states']
+        labels = self.generate_label(memories)
+#         print(states, labels)
+        self.train_step(states, labels)
+class DeepQLearningAgent(QLearningAgent):
+    def __init__(self, state_dim, action_dim, lr = 0.01, gamma = 0.95):
+        super().__init__()
+        self.model = DQNAgentModel(state_dim, action_dim, lr, gamma)
+    def train(self,*args,**kwargs):#alpha and gamma not used. fix later
+        super().train(*args,**kwargs)
+        self.model.train()
+    def getBestAction(self,state, actions):
+        if not isinstance(state, Iterable):
+            state = [state]
+        qVals = self.model([state])[0].data
+        best_a = max(zip(qVals[actions], actions))[1]
+#         print(actions,qVals, best_a)
+        return best_a
+    def _update(self, state, action, reward, next_state, next_state_actions, finished = False):
+        # print(state, action, reward, next_state, finished)
+        self.model.addObservation(state, action, reward, next_state, finished )
+        #high scale - numerical instability
+        self.model.replay_experiences()
+        

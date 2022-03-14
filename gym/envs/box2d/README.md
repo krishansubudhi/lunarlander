@@ -4,7 +4,7 @@
 - create a new environment.
 - install brew on macbook
 - brew install swig and other deps
-- pip install <gym repo location>
+- pip install gym[box2d]
 
 ## Run heuristic model
 

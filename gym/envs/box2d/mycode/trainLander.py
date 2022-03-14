@@ -14,7 +14,7 @@ def train_1ep(env, agent, seed = None, render=False, max_steps = 300, verbose = 
             if still_open == False: break
         if verbose:
             print(f"step {steps} a = {a} s = {s} r= {r}")
-        agent.update(s, a, r, ns)
+        agent.update(s, a, r, ns, None, finished = done)
         s = ns
         steps += 1
 
@@ -34,7 +34,20 @@ def getEpsilon(iter):
         threshold = 1
     if iter > 7500:
         threshold = 0
-    return 0.1 #threshold/10 # TODO: change to threshold
+    return threshold/100 # TODO: change to threshold
+
+# def getEpsilon(iter):
+
+#     threshold = 50
+#     if iter > 100:
+#         threshold = 10
+#     if iter > 200:
+#         threshold = 5
+#     if iter > 500:
+#         threshold = 1
+#     if iter > 750:
+#         threshold = 0
+#     return threshold/100 # TODO: change to threshold
 
 
 def train(env, agent, seed=None, render=False, 
@@ -82,20 +95,21 @@ def train(env, agent, seed=None, render=False,
 #random agent
 def main():
     import agents
-    from gym.envs.box2d import lunar_lander
+    import lunar_lander
     
     env = lunar_lander.LunarLander()
     # agent = agents.RandomAgent()
     # agent = agents.ApproximateQLearningAgent(8, 4)
-    agent = agents.HeuristicApproxQLearner()
+    # agent = agents.HeuristicApproxQLearner()
     # agent = agents.LanderQTableAgent(4)
+    agent = agents.DeepQLearningAgent(8,4, lr =0.01, gamma = 0.95)
 
     name = type(agent).__name__
     train(env, 
         agent, 
         seed = 47, 
         render = False, 
-        episodes= 1000, 
+        episodes= 10000, 
         name = name,
         verbose = False)
         

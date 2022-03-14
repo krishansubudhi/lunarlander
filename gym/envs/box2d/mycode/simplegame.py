@@ -49,20 +49,25 @@ class OneDtarget(Environment):
         reward = 0
         if self.isGoal(next_state):
             reward = 1
+        else:
+            #intermittent rewards
+            closer = abs(self.state-self.targetPoint) - abs(next_state-self.targetPoint)
+            reward  = closer/(self.maxPoint-self.minPoint)
         self.state = next_state
         return reward, self.state
 def playOneEpisode(
         env, 
         agent,
         maxSteps,
-        update = True):
+        update = True,
+        render = False):
     steps = 0
     rewards = 0
     env.reset()
     while steps < maxSteps:
         done = env.isGoal(env.state)
         if done:
-            print('Reached goal in {} steps. Total Reward = {}'.format(steps, rewards))
+            # print('Reached goal in {} steps. Total Reward = {}'.format(steps, rewards))
             break
         steps += 1
         initial_state = env.state
@@ -71,13 +76,18 @@ def playOneEpisode(
         #print(f'step {steps}: Possible actions = {possible_actions}, action predicted = {action}')
         reward, next_state = env.step(action)
         
-        env.renderEnv()
+        if render:
+            env.renderEnv()
+        done = env.isGoal(env.state)
         if update:
             next_state_actions = env.getPossibleActions()
-            agent.update(initial_state, action, reward, next_state, next_state_actions)
-        else:
-            env.renderEnv()
+            agent.update(initial_state, action, reward, next_state, next_state_actions, finished = done)
         rewards+=reward
+        if done:
+            # print('Reached goal in {} steps. Total Reward = {}'.format(steps, rewards))
+            break
+        
+    return rewards, steps
         
 if __name__ == '__main__':
     agent = agents.ApproximateQLearningAgent(1,2)
