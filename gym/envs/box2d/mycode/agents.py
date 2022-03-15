@@ -253,18 +253,19 @@ class DQNAgentModel(torch.nn.Module):
         )
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.net.to(self.device)
-        self.memory = deque(maxlen=1000000)
-        self.maxmemory = 1000
-        self.batch_size = 128
+        self.memory = []#deque(maxlen=1000000)
+        self.batch_size = 32
         self.lr = lr
         self.gamma = gamma
-        self.optim = torch.optim.SGD(lr = lr, params = self.parameters())
+        self.optim = torch.optim.Adam(lr = lr, params = self.parameters())
         self.criterion = torch.nn.MSELoss()
         self.losses = []
         self.steps = 0
+        print(self.device)
     def forward(self, x):
         if not isinstance(x, torch.Tensor):# assumes bs 1
-            x = torch.tensor(x, dtype = torch.float)
+            x = torch.tensor(np.array(x), dtype = torch.float)
+        x = x.to(self.device)
         return self.net(x)
     def get_random_memories(self, batch_size):
         indices = np.random.choice(len(self.memory), batch_size)
@@ -279,10 +280,10 @@ class DQNAgentModel(torch.nn.Module):
             rewards.append(self.memory[i][2])
             next_states.append(self.memory[i][3])
             finished.append(int(self.memory[i][4]))
-        return {'states' :torch.tensor(states, dtype = torch.float).reshape(len(states),self.ip_size),
+        return {'states' :torch.tensor(np.array(states), dtype = torch.float).reshape(len(states),self.ip_size),
                 'actions' : torch.tensor(actions, dtype = torch.long),
                 'rewards': torch.tensor(rewards, dtype = torch.float),
-                'next_states' : torch.tensor(next_states, dtype = torch.float).reshape(len(states),self.ip_size),
+                'next_states' : torch.tensor(np.array(next_states), dtype = torch.float).reshape(len(states),self.ip_size),
                 'finished' : torch.tensor(finished, dtype = torch.int)
                }
     def addObservation(self,state, action, reward, next_state, finished):
@@ -304,19 +305,21 @@ class DQNAgentModel(torch.nn.Module):
     def generate_label(self, memories):
         states = memories['states']
         actions = memories['actions']
+        rewards = memories['rewards']
+        next_states = memories['next_states']
+        finished = memories['finished']
         labels = self.forward(states)
-        next_state_qvals = torch.max(self.forward(memories['next_states']), axis = 1)[0] * (1-memories['finished'])
-        
+        next_state_qvals = torch.max(self.forward(next_states), axis = 1)[0] * (1-finished)
         labels[range(labels.shape[0]), actions] = \
-            memories['rewards'] + self.gamma * next_state_qvals
+            rewards + self.gamma * next_state_qvals
         return labels
     def replay_experiences(self):
         if len(self.memory)<self.batch_size:
             return
         memories = self.get_random_memories(self.batch_size)
+        memories = {k:v.to(self.device) for k,v in memories.items()}
         states = memories['states']
         labels = self.generate_label(memories)
-#         print(states, labels)
         self.train_step(states, labels)
 class DeepQLearningAgent(QLearningAgent):
     def __init__(self, state_dim, action_dim, lr = 0.01, gamma = 0.95):
