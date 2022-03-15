@@ -251,7 +251,7 @@ class DQNAgentModel(torch.nn.Module):
                 torch.nn.ReLU(),
                 torch.nn.Linear(hidden_size, op_size)
         )
-        self.device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.net.to(self.device)
         self.memory = deque(maxlen=1000000)
         self.maxmemory = 1000
@@ -289,8 +289,8 @@ class DQNAgentModel(torch.nn.Module):
         self.memory.append([state, action, reward, next_state, finished])
     def train_step(self, states, labels):
         # pdb.set_trace()
-        states.to(self.device)
-        states.to(self.device)
+        states = states.to(self.device)
+        labels = labels.to(self.device)
         self.steps += 1
         self.optim.zero_grad()
         pred = self.forward(states).squeeze()
