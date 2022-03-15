@@ -5,8 +5,12 @@ def train_1ep(env, agent, seed = None, render=False, max_steps = 300, verbose = 
     s = env.reset(seed=seed)
     total_reward = 0
     steps = 0
+
+    action_counts = [0,0,0,0]
     while True:
         a = agent.getAction(s, range(4)) #env.action_space.shape
+        action_counts[a] += 1
+        
         ns, r, done, info = env.step(a)
         total_reward += r
         if render:
@@ -21,66 +25,60 @@ def train_1ep(env, agent, seed = None, render=False, max_steps = 300, verbose = 
         if done or steps >max_steps:
             # print("observations:", " ".join([f"{x:+0.2f}" for x in s]))
             break
-    return total_reward, steps
-
-def getEpsilon(iter):
-
-    threshold = 50
-    if iter > 200:
-        threshold = 10
-    if iter > 2000:
-        threshold = 5
-    if iter > 5000:
-        threshold = 1
-    if iter > 7500:
-        threshold = 0
-    return threshold/100 # TODO: change to threshold
+    return total_reward, steps, action_counts
 
 # def getEpsilon(iter):
 
 #     threshold = 50
-#     if iter > 100:
-#         threshold = 10
 #     if iter > 200:
+#         threshold = 10
+#     if iter > 2000:
 #         threshold = 5
-#     if iter > 500:
+#     if iter > 5000:
 #         threshold = 1
-#     if iter > 750:
+#     if iter > 7500:
 #         threshold = 0
 #     return threshold/100 # TODO: change to threshold
 
+def getEpsilon(iter):
+    return max(0.2, np.power(0.996,iter))
+
 
 def train(env, agent, seed=None, render=False, 
-        episodes = 1, name = 'UnnamedAgent', verbose = False):
+        episodes = 1, name = 'UnnamedAgent', verbose = False, max_steps = 1000):
     reward_allep = []
     steps_allep = []
 
     avg_rewards = []
     avg_steps = []
 
-    s = env.reset(seed=seed)
-    for ep in range(episodes):
+    for ep in range(1,episodes+1):
+        s = env.reset(seed=seed)
         agent.train(
             epsilon=getEpsilon(ep),
             gamma=0.95,
             alpha=0.001
         )
-        total_reward, steps = train_1ep(env,
-                            seed = seed,
-                            render=render,
-                            agent = agent,
-                            max_steps = 300,
-                            verbose = verbose)
+        total_reward, steps, action_counts = train_1ep(env,
+                                                seed = np.random.randint(0,100),
+                                                render=render,
+                                                agent = agent,
+                                                max_steps = max_steps,
+                                                verbose = verbose)
         reward_allep.append(total_reward)
         steps_allep.append(steps)
-
-        if ep%100 == 0:
+        if ep%50 == 0:
+            render = True
+        if ep%51 == 0:
+            render = False
+        if ep%50 == 0:
             avg_rewards.append(np.mean(reward_allep))
             avg_steps.append(int(np.mean(steps_allep)))
-            print(f"ep {ep} steps {avg_steps[-1]} reward {avg_rewards[-1]:+0.2f}")
+            print(f"ep {ep} steps {avg_steps[-1]} reward {avg_rewards[-1]:+0.2f}, action_counts = {action_counts}, ep = {getEpsilon(ep)}")
             reward_allep = []
             steps_allep = []
             # print(agent)
+            agent.save(f'./checkpoints/{name}_{ep}')
     fig, (ax1,ax2) = plt.subplots(2,1, sharex=True)
     fig.suptitle(name, fontsize=16)
     plt.grid(True)
@@ -92,30 +90,49 @@ def train(env, agent, seed=None, render=False,
     np.savetxt(f'./results/{name}_avg_steps.txt', np.array(avg_steps))
     plt.savefig(f"results/{name}.png")
 
-#random agent
+def evaluate(env, agent, episodes):
+    env.reset()
+    for ep in range(episodes):
+        agent.evaluate()
+        total_reward, steps, action_counts = train_1ep(env,
+                                                seed = np.random.randint(0,100), # pick it randomly later
+                                                render=True,
+                                                agent = agent,
+                                                max_steps = 1000,
+                                                verbose = False)
+        print(f"ep {ep} steps {steps} reward {total_reward:+0.2f}, action_counts = {action_counts}")
+
+import agents
+import lunar_lander
+
 def main():
-    import agents
-    import lunar_lander
-    
+
     env = lunar_lander.LunarLander()
     # agent = agents.RandomAgent()
     # agent = agents.ApproximateQLearningAgent(8, 4)
     # agent = agents.HeuristicApproxQLearner()
     # agent = agents.LanderQTableAgent(4)
-    agent = agents.DeepQLearningAgent(8,4, lr =0.01, gamma = 0.95)
-
+    agent = agents.DeepQLearningAgent(8,4, lr =0.001, gamma = 0.99)
     name = type(agent).__name__
+    # agent.load(f'./checkpoints/{name}_{500}')
+    print(agent)
+    episodes= 1000
     train(env, 
         agent, 
-        seed = 47, 
+        seed = 0, 
         render = False, 
-        episodes= 10000, 
+        episodes= episodes, 
+        max_steps = 1000,
         name = name,
         verbose = False)
-        
-    # print(agent)
+    
+    print(agent)
     plt.show()
+    print('evaluating')
+    agent2 = agents.DeepQLearningAgent(8,4, lr =0.001, gamma = 0.99)
+    agent2.load(f'./checkpoints/{name}_{episodes}')
+    evaluate(env, agent2, 1)
+    print(agent2)
 
 if __name__ == '__main__':
     main()
-    

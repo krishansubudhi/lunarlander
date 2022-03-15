@@ -13,6 +13,8 @@ class Agent():
         raise NotImplemented()
     def train(*args,**kwargs):
         pass
+    def save(self, path):
+        pass
 
 class RandomAgent():
     def getAction(self, state, actions):
@@ -243,7 +245,7 @@ class DQNAgentModel(torch.nn.Module):
         super().__init__()
         self.ip_size = ip_size
         self.op_size = op_size
-        hidden_size = 20
+        hidden_size = 64
         self.net = torch.nn.Sequential(
                 torch.nn.Linear(ip_size, hidden_size),
                 torch.nn.ReLU(),
@@ -253,19 +255,18 @@ class DQNAgentModel(torch.nn.Module):
         )
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.net.to(self.device)
-        self.memory = []#deque(maxlen=1000000)
+        self.maxmemory = 1000000
+        self.memory = deque(maxlen=self.maxmemory)
         self.batch_size = 32
         self.lr = lr
         self.gamma = gamma
-        self.optim = torch.optim.Adam(lr = lr, params = self.parameters())
+        self.optim = torch.optim.SGD(lr = lr, params = self.parameters())
         self.criterion = torch.nn.MSELoss()
         self.losses = []
         self.steps = 0
-        print(self.device)
     def forward(self, x):
         if not isinstance(x, torch.Tensor):# assumes bs 1
             x = torch.tensor(np.array(x), dtype = torch.float)
-        x = x.to(self.device)
         return self.net(x)
     def get_random_memories(self, batch_size):
         indices = np.random.choice(len(self.memory), batch_size)
@@ -305,26 +306,25 @@ class DQNAgentModel(torch.nn.Module):
     def generate_label(self, memories):
         states = memories['states']
         actions = memories['actions']
-        rewards = memories['rewards']
-        next_states = memories['next_states']
-        finished = memories['finished']
         labels = self.forward(states)
-        next_state_qvals = torch.max(self.forward(next_states), axis = 1)[0] * (1-finished)
+        next_state_qvals = torch.max(self.forward(memories['next_states']), axis = 1)[0] * (1-memories['finished'])
+        
         labels[range(labels.shape[0]), actions] = \
-            rewards + self.gamma * next_state_qvals
+            memories['rewards'] + self.gamma * next_state_qvals
         return labels
     def replay_experiences(self):
         if len(self.memory)<self.batch_size:
             return
         memories = self.get_random_memories(self.batch_size)
-        memories = {k:v.to(self.device) for k,v in memories.items()}
         states = memories['states']
         labels = self.generate_label(memories)
+#         print(states, labels)
         self.train_step(states, labels)
 class DeepQLearningAgent(QLearningAgent):
     def __init__(self, state_dim, action_dim, lr = 0.01, gamma = 0.95):
         super().__init__()
         self.model = DQNAgentModel(state_dim, action_dim, lr, gamma)
+        self.num_updates = 0
     def train(self,*args,**kwargs):#alpha and gamma not used. fix later
         super().train(*args,**kwargs)
         self.model.train()
@@ -337,7 +337,13 @@ class DeepQLearningAgent(QLearningAgent):
         return best_a
     def _update(self, state, action, reward, next_state, next_state_actions, finished = False):
         # print(state, action, reward, next_state, finished)
+        self.num_updates += 1
         self.model.addObservation(state, action, reward, next_state, finished )
         #high scale - numerical instability
         self.model.replay_experiences()
-
+    def save(self, path):
+        torch.save(self.model.state_dict(),path)
+    def load(self, path):
+        self.model.load_state_dict(torch.load(path))
+    def __str__(self) -> str:
+        return str(self.model.state_dict()['net.0.weight'][0])
