@@ -15,7 +15,8 @@ This was my project for CSEP 573A class in University of Washington.
     sudo apt install swig
 
 - install dependeics
-    pip install gym[box2d]==0.23.0 torch numpy matplotlib pygame
+
+      pip install gym[box2d]==0.23.0 torch numpy matplotlib pygame
 
 # Run heuristic model
 
