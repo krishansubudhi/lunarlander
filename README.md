@@ -1,4 +1,3 @@
-# Krishan's instructions to run
 
 This repo provides creates a reinforcement learning based agent for https://gym.openai.com/envs/LunarLander-v2/.
 
